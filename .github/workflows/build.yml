@@ -75,7 +75,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: HorlogeStudio-linux
-          path: dist/HorlogeStudio
+          path: dist/HorlogeStudio-Linux
 
   # ---------------------------------------------------------------------
   # Publication en Release GitHub — uniquement quand on pousse un tag
@@ -98,4 +98,4 @@ jobs:
         with:
           files: |
             artifacts/HorlogeStudio-windows/HorlogeStudio.exe
-            artifacts/HorlogeStudio-linux/HorlogeStudio
+            artifacts/HorlogeStudio-linux/HorlogeStudio-Linux
