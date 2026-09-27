@@ -67,7 +67,7 @@ jobs:
       - name: Compiler avec PyInstaller
         run: >
           pyinstaller --onefile
-          --name HorlogeStudio
+          --name HorlogeStudio-linux
           --icon assets/icon.png
           horloge_studio.py
 
@@ -75,7 +75,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: HorlogeStudio-linux
-          path: dist/HorlogeStudio-Linux
+          path: dist/HorlogeStudio-linux
 
   # ---------------------------------------------------------------------
   # Publication en Release GitHub — uniquement quand on pousse un tag
@@ -98,4 +98,4 @@ jobs:
         with:
           files: |
             artifacts/HorlogeStudio-windows/HorlogeStudio.exe
-            artifacts/HorlogeStudio-linux/HorlogeStudio-Linux
+            artifacts/HorlogeStudio-linux/HorlogeStudio-linux
