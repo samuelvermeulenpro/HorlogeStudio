@@ -24,7 +24,9 @@ Utilisation
     python3 horloge_studio.py --window --shaped
                                                # fenêtré, DÉCOUPÉ en cercle : le carré
                                                # noir disparaît, seul le cercle reste
-                                               # visible (Linux/X11 uniquement)
+                                               # visible (Linux/X11 : extension XShape ;
+                                               # Windows : couleur-clé -transparentcolor,
+                                               # native et sans artefact au déplacement)
 
 Raccourcis clavier (une fois l'appli lancée)
 ---------------------------------------------
@@ -57,6 +59,13 @@ import math
 import sys
 import tkinter as tk
 from datetime import datetime
+
+IS_WINDOWS = sys.platform.startswith("win")
+IS_LINUX = sys.platform.startswith("linux")
+
+# Couleur-clé utilisée pour la transparence native Windows (-transparentcolor).
+# Choisie pour ne jamais apparaître ailleurs dans le dessin de l'horloge.
+TRANSPARENT_KEY = "#ff00fe"
 
 # ---------------------------------------------------------------------------
 # Découpe de fenêtre circulaire (X11 Shape extension) — optionnel, Linux only
@@ -204,6 +213,20 @@ class StudioClock(tk.Tk):
         self._opacity = max(0.10, min(1.0, opacity))
         self._opaque_backup = self._opacity if self._opacity < 1.0 else 0.85
 
+        # Le découpage circulaire réel n'est possible qu'avec un mécanisme
+        # natif par plateforme : XShape sous Linux/X11, colorkey (-transparentcolor)
+        # sous Windows. Ailleurs (macOS...), on retombe sur la fenêtre carrée.
+        self._shape_mode = None
+        if shaped:
+            if IS_LINUX:
+                self._shape_mode = "x11"
+            elif IS_WINDOWS:
+                self._shape_mode = "colorkey"
+            else:
+                print(f"[horloge_studio] Fenêtre circulaire non prise en charge sur "
+                      f"cette plateforme ({sys.platform}) — fenêtre carrée conservée.",
+                      file=sys.stderr)
+
         if self._fullscreen:
             self.attributes("-fullscreen", True)
         else:
@@ -212,9 +235,16 @@ class StudioClock(tk.Tk):
                 self.overrideredirect(True)
         self.attributes("-topmost", self._topmost)
         self.attributes("-alpha", self._opacity)
+        if self._shape_mode == "colorkey":
+            self.attributes("-transparentcolor", TRANSPARENT_KEY)
 
         self.canvas = tk.Canvas(self, bg=COLOR_BG, highlightthickness=0)
         self.canvas.pack(fill="both", expand=True)
+        if self._shape_mode == "colorkey":
+            # Windows : tout pixel de cette couleur devient invisible ; on
+            # peint le carré entier dans cette couleur puis un disque noir
+            # opaque par-dessus (voir _redraw), sans aucun code bas niveau.
+            self.canvas.configure(bg=TRANSPARENT_KEY)
 
         self.bind("<Escape>", lambda e: self.destroy())
         self.bind("q", lambda e: self.destroy())
@@ -230,7 +260,7 @@ class StudioClock(tk.Tk):
         if self._borderless:
             self.canvas.bind("<ButtonPress-1>", self._start_drag)
             self.canvas.bind("<B1-Motion>", self._do_drag)
-            if self._shaped:
+            if self._shape_mode == "x11":
                 self.canvas.bind("<ButtonRelease-1>", self._end_drag)
         self.canvas.bind("<Configure>", lambda e: self._redraw())
 
@@ -254,7 +284,7 @@ class StudioClock(tk.Tk):
                                   lambda e: self.canvas.config(cursor=""))
 
         self._last_second = -1
-        if self._shaped:
+        if self._shape_mode == "x11":
             self._shape_size = None
             self.bind("<Map>", self._apply_shape)
             self.bind("<Configure>", self._apply_shape)
@@ -357,6 +387,14 @@ class StudioClock(tk.Tk):
         cx, cy = w / 2, h / 2
         size = min(w, h)
         radius = size * 0.46
+
+        if self._shape_mode == "colorkey":
+            # Windows : le carré entier est en couleur-clé (invisible), seul
+            # le disque noir dessiné par-dessus reste visible à l'écran.
+            diameter = size - 4
+            c.create_oval(cx - diameter / 2, cy - diameter / 2,
+                          cx + diameter / 2, cy + diameter / 2,
+                          fill=COLOR_BG, outline="")
 
         self._draw_ring(c, cx, cy, radius, now)
         self._draw_time(c, cx, cy, size, now)
