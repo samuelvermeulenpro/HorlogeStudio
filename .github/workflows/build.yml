@@ -1,0 +1,99 @@
+name: Build horloge de studio
+
+# Se déclenche : à chaque push sur main, à chaque pull request, sur un tag
+# de version (v1.0.0, v1.1.0, ...), et manuellement depuis l'onglet Actions
+# (bouton "Run workflow") via workflow_dispatch.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  # ---------------------------------------------------------------------
+  # Compilation Windows -> .exe
+  # ---------------------------------------------------------------------
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installer PyInstaller
+        run: pip install pyinstaller
+
+      - name: Compiler avec PyInstaller
+        run: >
+          pyinstaller --onefile --windowed
+          --name HorlogeStudio
+          --icon assets/icon.ico
+          horloge_studio.py
+
+      - name: Publier l'exécutable comme artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HorlogeStudio-windows
+          path: dist/HorlogeStudio.exe
+
+  # ---------------------------------------------------------------------
+  # Compilation Linux -> binaire ELF
+  # ---------------------------------------------------------------------
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installer les dépendances système (Tkinter + X11)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk libx11-6 libxext6
+
+      - name: Installer PyInstaller
+        run: pip install pyinstaller
+
+      - name: Compiler avec PyInstaller
+        run: >
+          pyinstaller --onefile
+          --name HorlogeStudio
+          --icon assets/icon.png
+          horloge_studio.py
+
+      - name: Publier le binaire comme artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HorlogeStudio-linux
+          path: dist/HorlogeStudio
+
+  # ---------------------------------------------------------------------
+  # Publication en Release GitHub — uniquement quand on pousse un tag
+  # (ex: git tag v1.0.0 && git push origin v1.0.0)
+  # ---------------------------------------------------------------------
+  release:
+    needs: [build-windows, build-linux]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer les artefacts compilés
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Créer la Release GitHub
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/HorlogeStudio-windows/HorlogeStudio.exe
+            artifacts/HorlogeStudio-linux/HorlogeStudio
